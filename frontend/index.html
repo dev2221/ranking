@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Ranking CER</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'neon-cyan': '#00ffff',
+                        'neon-purple': '#8a2be2',
+                        'deep-slate': '#020617',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: #020617;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .neon-border {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.1), rgba(138, 43, 226, 0.1));
+            border: 1px solid transparent;
+            background-clip: padding-box;
+        }
+        .hover-glow:hover {
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.6), 0 0 60px rgba(138, 43, 226, 0.4);
+            transform: translateY(-3px) scale(1.02);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .badge-green { background: linear-gradient(45deg, #10b981, #34d399); }
+        .badge-yellow { background: linear-gradient(45deg, #f59e0b, #fbbf24); }
+        .badge-red { background: linear-gradient(45deg, #ef4444, #f87171); }
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .gradient-bg {
+            background: linear-gradient(-45deg, #020617, #0f172a, #1e293b, #020617);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .icon-glow {
+            filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.5));
+        }
+    </style>
+</head>
+<body class="text-white gradient-bg">
+    <div id="login" class="flex items-center justify-center min-h-screen">
+        <div class="glass neon-border p-10 rounded-xl w-full max-w-md hover-glow">
+            <h1 class="text-2xl font-bold text-center mb-6 text-neon-cyan flex items-center justify-center gap-2 animate-pulse-slow">
+                <i data-lucide="zap" class="w-6 h-6 animate-float icon-glow"></i>
+                Sistema de Ranking CER
+                <i data-lucide="shield" class="w-6 h-6 animate-float icon-glow" style="animation-delay: 1s;"></i>
+            </h1>
+            <form id="loginForm">
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-2">Senha</label>
+                    <input type="password" id="password" class="w-full p-3 bg-slate-800/50 border border-slate-600 rounded-lg focus:outline-none focus:border-neon-cyan backdrop-blur-sm shadow-lg focus:shadow-neon-cyan/30 transition-all duration-300" required>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-neon-cyan to-neon-purple text-slate-900 py-3 px-6 btn-rounded font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-neon-cyan/50">
+                    <i data-lucide="log-in" class="w-4 h-4"></i>
+                    Entrar
+                </button>
+            </form>
+            <p id="loginError" class="text-red-400 text-center mt-4 hidden">Usuário ou senha incorretos.</p>
+        </div>
+    </div>
+
+    <div id="app" class="hidden p-6 max-w-7xl mx-auto">
+        <header class="flex justify-between items-center mb-10">
+            <h1 class="text-3xl font-bold text-neon-cyan flex items-center gap-2 animate-pulse-slow">
+                <i data-lucide="trophy" class="w-8 h-8 animate-float icon-glow"></i>
+                Sistema de Ranking CER
+                <i data-lucide="zap" class="w-6 h-6 animate-float icon-glow" style="animation-delay: 2s;"></i>
+            </h1>
+            <div class="flex gap-4">
+                <button id="exportPdf" class="bg-gradient-to-r from-neon-cyan to-neon-purple text-slate-900 py-3 px-6 btn-rounded font-bold hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-neon-cyan/50 animate-pulse-slow">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    Exportar Ranking
+                </button>
+                <button id="logout" class="bg-slate-600 text-white py-3 px-6 btn-rounded font-bold hover:bg-slate-500 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-slate-500/50">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    Sair
+                </button>
+            </div>
+        </header>
+        
+        <div id="adminPanel" class="glass neon-border p-8 rounded-xl mb-10 hover-glow">
+            <h2 class="text-xl font-bold mb-4 text-neon-purple flex items-center gap-2 animate-pulse-slow">
+                <i data-lucide="user-plus" class="w-5 h-5 animate-float icon-glow"></i>
+                Adicionar/Editar Estagiário
+            </h2>
+            <form id="internForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Nome</label>
+                    <input type="text" id="name" class="w-full p-3 bg-slate-800/50 border border-slate-600 rounded-lg focus:outline-none focus:border-neon-cyan backdrop-blur-sm shadow-lg focus:shadow-neon-cyan/30 transition-all duration-300" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Comunicação (0-10)</label>
+                    <input type="number" id="comunicacao" min="0" max="10" step="0.1" class="w-full p-3 bg-slate-800/50 border border-slate-600 rounded-lg focus:outline-none focus:border-neon-cyan backdrop-blur-sm shadow-lg focus:shadow-neon-cyan/30 transition-all duration-300" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Proatividade (0-10)</label>
+                    <input type="number" id="proatividade" min="0" max="10" step="0.1" class="w-full p-3 bg-slate-800/50 border border-slate-600 rounded-lg focus:outline-none focus:border-neon-cyan backdrop-blur-sm shadow-lg focus:shadow-neon-cyan/30 transition-all duration-300" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Trabalho em Equipe (0-10)</label>
+                    <input type="number" id="equipe" min="0" max="10" step="0.1" class="w-full p-3 bg-slate-800/50 border border-slate-600 rounded-lg focus:outline-none focus:border-neon-cyan backdrop-blur-sm shadow-lg focus:shadow-neon-cyan/30 transition-all duration-300" required>
+                </div>
+                <div class="md:col-span-2">
+                    <button type="submit" class="bg-gradient-to-r from-neon-cyan to-neon-purple text-slate-900 py-3 px-6 btn-rounded font-bold hover:opacity-90 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-neon-cyan/50">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        Salvar
+                    </button>
+                    <button type="button" id="cancelEdit" class="ml-2 bg-slate-600 text-white py-3 px-6 btn-rounded font-bold hover:bg-slate-500 transition-all duration-300 hidden flex items-center gap-2 shadow-lg hover:shadow-slate-500/50">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="glass neon-border p-8 rounded-xl hover-glow">
+            <h2 class="text-xl font-bold mb-4 text-neon-purple flex items-center gap-2 animate-pulse-slow">
+                <i data-lucide="bar-chart-3" class="w-5 h-5 animate-float icon-glow"></i>
+                Ranking de Estagiários
+            </h2>
+            <div id="rankingList" class="space-y-6">
+                <!-- Ranking items will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const loginCredentials = {
+            admin: { username: 'admin', password: 'Reabilit@cao25', role: 'admin' },
+            guest: { username: 'convidado', password: 'senha123456', role: 'guest' }
+        };
+        const internsKey = 'cerInterns';
+        let currentUser = null;
+
+        // Initialize data
+        let interns = JSON.parse(localStorage.getItem(internsKey)) || [];
+        if (interns.length === 0) {
+            interns = [
+                { name: 'Gusthavo', comunicacao: null, proatividade: null, equipe: null },
+                { name: 'Hemerson', comunicacao: null, proatividade: null, equipe: null },
+                { name: 'Mariana', comunicacao: null, proatividade: null, equipe: null },
+                { name: 'Nathalia', comunicacao: null, proatividade: null, equipe: null },
+                { name: 'Lunara', comunicacao: null, proatividade: null, equipe: null },
+                { name: 'mateus', comunicacao: null, proatividade: null, equipe: null }
+            ];
+            localStorage.setItem(internsKey, JSON.stringify(interns));
+        }
+
+        let editingIndex = -1;
+
+        // Login
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            
+            if (password === loginCredentials.admin.password) {
+                currentUser = loginCredentials.admin;
+            } else if (password === loginCredentials.guest.password) {
+                currentUser = loginCredentials.guest;
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+                return;
+            }
+            
+            document.getElementById('login').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            setupUI();
+            renderRanking();
+            lucide.createIcons();
+        });
+
+        // Logout
+        document.getElementById('logout').addEventListener('click', function() {
+            currentUser = null;
+            document.getElementById('app').classList.add('hidden');
+            document.getElementById('login').classList.remove('hidden');
+            document.getElementById('password').value = '';
+            document.getElementById('loginError').classList.add('hidden');
+        });
+
+        // Setup UI based on role
+        function setupUI() {
+            const adminPanel = document.getElementById('adminPanel');
+            if (currentUser.role === 'guest') {
+                adminPanel.style.display = 'none';
+            } else {
+                adminPanel.style.display = 'block';
+            }
+        }
+
+        // Form submit
+        document.getElementById('internForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('name').value.trim();
+            const comunicacao = parseFloat(document.getElementById('comunicacao').value);
+            const proatividade = parseFloat(document.getElementById('proatividade').value);
+            const equipe = parseFloat(document.getElementById('equipe').value);
+
+            if (editingIndex >= 0) {
+                interns[editingIndex] = { name, comunicacao, proatividade, equipe };
+                editingIndex = -1;
+                document.getElementById('cancelEdit').classList.add('hidden');
+            } else {
+                interns.push({ name, comunicacao, proatividade, equipe });
+            }
+
+            localStorage.setItem(internsKey, JSON.stringify(interns));
+            document.getElementById('internForm').reset();
+            renderRanking();
+        });
+
+        // Cancel edit
+        document.getElementById('cancelEdit').addEventListener('click', function() {
+            editingIndex = -1;
+            document.getElementById('internForm').reset();
+            this.classList.add('hidden');
+        });
+
+        // Export PDF
+        document.getElementById('exportPdf').addEventListener('click', function() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFontSize(20);
+            doc.text('Relatório de Desempenho - CER', 20, 30);
+            
+            const tableData = interns.map(intern => {
+                const avg = (intern.comunicacao + intern.proatividade + intern.equipe) / 3;
+                return [
+                    intern.name,
+                    intern.comunicacao || 'N/A',
+                    intern.proatividade || 'N/A',
+                    intern.equipe || 'N/A',
+                    avg ? avg.toFixed(2) : 'N/A'
+                ];
+            }).sort((a, b) => parseFloat(b[4]) - parseFloat(a[4]));
+            
+            doc.autoTable({
+                head: [['Nome', 'Comunicação', 'Proatividade', 'Equipe', 'Média']],
+                body: tableData,
+                startY: 50,
+            });
+            
+            doc.save('ranking-cer.pdf');
+        });
+
+        // Render ranking
+        function renderRanking() {
+            const rankingList = document.getElementById('rankingList');
+            rankingList.innerHTML = '';
+
+            if (interns.length === 0) {
+                rankingList.innerHTML = '<p class="text-center text-slate-400">Nenhum estagiário cadastrado.</p>';
+                return;
+            }
+
+            // Calculate averages and sort
+            const rankedInterns = interns.map(intern => {
+                const avg = (intern.comunicacao + intern.proatividade + intern.equipe) / 3;
+                return { ...intern, average: avg };
+            }).sort((a, b) => b.average - a.average);
+
+            rankedInterns.forEach((intern, index) => {
+                const item = document.createElement('div');
+                item.className = 'glass p-6 rounded-lg hover-glow animate-float flex justify-between items-center';
+                
+                let badgeClass = 'badge-red';
+                if (intern.average >= 8) badgeClass = 'badge-green';
+                else if (intern.average >= 6) badgeClass = 'badge-yellow';
+                
+                const actions = currentUser.role === 'admin' ? `
+                    <div class="flex gap-2">
+                        <button onclick="editIntern(${interns.indexOf(interns.find(i => i.name === intern.name))})" class="bg-neon-cyan text-slate-900 py-2 px-4 btn-rounded text-sm font-bold hover:opacity-90 transition-all duration-300 flex items-center gap-1 shadow-lg hover:shadow-neon-cyan/50">
+                            <i data-lucide="edit" class="w-3 h-3"></i>
+                            Editar
+                        </button>
+                        <button onclick="deleteIntern(${interns.indexOf(interns.find(i => i.name === intern.name))})" class="bg-red-600 text-white py-2 px-4 btn-rounded text-sm font-bold hover:bg-red-500 transition-all duration-300 flex items-center gap-1 shadow-lg hover:shadow-red-500/50">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i>
+                            Excluir
+                        </button>
+                    </div>
+                ` : '';
+                
+                item.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <span class="text-3xl font-bold text-neon-cyan animate-pulse-slow icon-glow">${index + 1}.</span>
+                        <div>
+                            <h3 class="font-bold text-neon-cyan text-lg">${intern.name}</h3>
+                            <p class="text-sm text-slate-300">Comunicação: ${intern.comunicacao || 'N/A'} | Proatividade: ${intern.proatividade || 'N/A'} | Equipe: ${intern.equipe || 'N/A'}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="px-4 py-2 btn-rounded text-white text-sm font-bold ${badgeClass} shadow-lg">Média: ${intern.average ? intern.average.toFixed(2) : 'N/A'}</span>
+                        ${actions}
+                    </div>
+                `;
+                rankingList.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+
+        // Edit intern
+        function editIntern(index) {
+            const intern = interns[index];
+            document.getElementById('name').value = intern.name;
+            document.getElementById('comunicacao').value = intern.comunicacao || '';
+            document.getElementById('proatividade').value = intern.proatividade || '';
+            document.getElementById('equipe').value = intern.equipe || '';
+            editingIndex = index;
+            document.getElementById('cancelEdit').classList.remove('hidden');
+        }
+
+        // Delete intern
+        function deleteIntern(index) {
+            if (confirm('Tem certeza que deseja excluir este estagiário?')) {
+                interns.splice(index, 1);
+                localStorage.setItem(internsKey, JSON.stringify(interns));
+                renderRanking();
+            }
+        }
+
+        // Initial render
+        renderRanking();
+        lucide.createIcons();
+    </script>
+</body>
+</html>
